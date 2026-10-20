@@ -13,7 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # 1. Cấu hình Database PostgreSQL (Supabase)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    "postgresql+psycopg2://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
 )
 
 engine = create_engine(DATABASE_URL)
@@ -110,7 +110,18 @@ async def lifespan(app: FastAPI):
     mqtt_client.loop_stop()
     mqtt_client.disconnect()
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="Durian IoT Agriculture Monitoring", lifespan=lifespan)
+
+# Cấu hình CORS cho phép mọi Frontend truy cập API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def root():
