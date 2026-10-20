@@ -7,12 +7,12 @@ from pydantic import BaseModel, Field
 import paho.mqtt.client as mqtt
 
 # 1. Cấu hình kết nối EMQX Cloud
-MQTT_BROKER = "qe66bb68.ala.eu-central-1.emqxsl.com"[cite: 7, 9]
-MQTT_PORT = 8883[cite: 7, 9]
-MQTT_TOPIC = "farm/durian/nodes/+"[cite: 7, 9]
+MQTT_BROKER = "qe66bb68.ala.eu-central-1.emqxsl.com" 
+MQTT_PORT = 8883 
+MQTT_TOPIC = "farm/durian/nodes/+" 
 
-MQTT_USER = "BACTUYEN"[cite: 7, 9]
-MQTT_PASSWORD = "1"[cite: 7, 9]
+MQTT_USER = "BACTUYEN" 
+MQTT_PASSWORD = "1" 
 
 
 # 2. Schema kiểm tra kiểu dữ liệu (Data Validation) bằng Pydantic
@@ -27,11 +27,11 @@ class SensorPayload(BaseModel):
 # 3. Callback khi kết nối thành công MQTT Broker
 def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
-        print("[MQTT] Đã kết nối an toàn (TLS) tới EMQX Cloud!")[cite: 7, 9]
-        client.subscribe(MQTT_TOPIC)[cite: 7, 9]
-        print(f"[MQTT] Đã subscribe topic: {MQTT_TOPIC}")[cite: 7, 9]
+        print("[MQTT] Đã kết nối an toàn (TLS) tới EMQX Cloud!") 
+        client.subscribe(MQTT_TOPIC) 
+        print(f"[MQTT] Đã subscribe topic: {MQTT_TOPIC}") 
     else:
-        print(f"[MQTT] Lỗi kết nối, Mã lỗi (rc): {rc}")[cite: 7, 9]
+        print(f"[MQTT] Lỗi kết nối, Mã lỗi (rc): {rc}") 
 
 
 # 4. Callback khi nhận dữ liệu từ các Node
@@ -65,11 +65,11 @@ def on_message(client, userdata, msg):
 
 
 # Khởi tạo MQTT Client
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)[cite: 7, 9]
-mqtt_client.on_connect = on_connect[cite: 7, 9]
-mqtt_client.on_message = on_message[cite: 7, 9]
-mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD)[cite: 7, 9]
-mqtt_client.tls_set(cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLSv1_2)[cite: 7, 9]
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2) 
+mqtt_client.on_connect = on_connect 
+mqtt_client.on_message = on_message 
+mqtt_client.username_pw_set(MQTT_USER, MQTT_PASSWORD) 
+mqtt_client.tls_set(cert_reqs=ssl.CERT_REQUIRED, tls_version=ssl.PROTOCOL_TLSv1_2) 
 
 
 @asynccontextmanager
