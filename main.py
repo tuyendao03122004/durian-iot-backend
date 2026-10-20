@@ -33,8 +33,7 @@ class SensorLog(Base):
     battery = Column(Float)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-Base.metadata.create_engine(bind=engine)
-
+Base.metadata.create_all(bind=engine)
 # 2. Cấu hình MQTT Broker (EMQX Cloud)
 MQTT_BROKER = "qe66bb68.ala.eu-central-1.emqxsl.com"
 MQTT_PORT = 8883
