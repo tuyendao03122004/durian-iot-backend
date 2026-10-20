@@ -13,7 +13,7 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 # 1. Cấu hình Database PostgreSQL (Supabase)
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres.hlqvfbtqsuudxbglelmu:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    "postgresql://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 )
 
 engine = create_engine(DATABASE_URL)
