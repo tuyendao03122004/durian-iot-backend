@@ -17,7 +17,6 @@ import paho.mqtt.client as mqtt
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-# Dùng bcrypt & pyjwt thuần cho xác thực tài khoản (Tránh crash passlib trên Render)
 import bcrypt
 import jwt
 
@@ -26,7 +25,8 @@ import jwt
 # ==========================================
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={gemini_api_key}")
+    "postgresql+psycopg2://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
+)
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -54,7 +54,7 @@ class User(Base):
     email = Column(String(100), nullable=True)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String(100), nullable=True)
-    role = Column(String(20), default="user") # 'admin' hoặc 'user'
+    role = Column(String(20), default="user")
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -77,7 +77,7 @@ class DeviceControl(Base):
     id = Column(Integer, primary_key=True, index=True)
     node_id = Column(String(50), unique=True, nullable=False)
     pump_status = Column(Boolean, default=False)
-    mode = Column(String(20), default="manual") # 'manual' hoặc 'auto'
+    mode = Column(String(20), default="manual")
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 Base.metadata.create_all(bind=engine)
@@ -98,13 +98,11 @@ SECRET_KEY = os.getenv("JWT_SECRET", "durian_secret_key_2026")
 ALGORITHM = "HS256"
 
 def get_password_hash(password: str) -> str:
-    """Băm mật khẩu an toàn bằng bcrypt thuần"""
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(pwd_bytes, salt).decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Xác thực mật khẩu"""
     try:
         return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
     except Exception:
@@ -146,7 +144,7 @@ class ThresholdUpdate(BaseModel):
 
 class PumpControlRequest(BaseModel):
     node_id: str
-    action: str # "ON" hoặc "OFF"
+    action: str
 
 class ChatRequest(BaseModel):
     message: str
@@ -165,9 +163,8 @@ def send_telegram_alert(message: str):
     payload = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
     try:
         httpx.post(url, json=payload, timeout=5.0)
-        print("[Telegram Alert] Đã gửi thông báo cảnh báo thành công!")
     except Exception as e:
-        print(f"[Telegram Alert Error] Lỗi gửi tin nhắn: {e}")
+        print(f"[Telegram Alert Error] {e}")
 
 def check_thresholds_and_alert(db, node_id: str, data: SensorPayload):
     try:
@@ -208,12 +205,10 @@ def save_to_db(node_id: str, data: SensorPayload):
         )
         db.add(log_entry)
         db.commit()
-        print(f"[Database] Đã lưu dữ liệu thành công cho {node_id}")
-        
         check_thresholds_and_alert(db, node_id, data)
     except Exception as e:
         db.rollback()
-        print(f"[Database Error] Lỗi lưu dữ liệu: {e}")
+        print(f"[Database Error] {e}")
     finally:
         db.close()
 
@@ -221,20 +216,16 @@ def on_connect(client, userdata, flags, rc, properties=None):
     if rc == 0:
         print("[MQTT] Đã kết nối an toàn (TLS) tới EMQX Cloud!")
         client.subscribe(MQTT_TOPIC)
-    else:
-        print(f"[MQTT] Lỗi kết nối (rc): {rc}")
 
 def on_message(client, userdata, msg):
     try:
         payload_str = msg.payload.decode("utf-8")
         raw_data = json.loads(payload_str)
         node_id = msg.topic.split("/")[-1]
-        
         data = SensorPayload(**raw_data)
         save_to_db(node_id, data)
-        
     except Exception as e:
-        print(f"[MQTT Processing Error] {e}")
+        print(f"[MQTT Error] {e}")
 
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 mqtt_client.on_connect = on_connect
@@ -257,7 +248,7 @@ async def lifespan(app: FastAPI):
     mqtt_client.disconnect()
 
 # ==========================================
-# 7. FastAPI App Definition & Middleware
+# 7. FastAPI App Definition
 # ==========================================
 app = FastAPI(title="Durian IoT Agriculture Monitoring", lifespan=lifespan)
 
@@ -277,17 +268,14 @@ app.add_middleware(
 def root():
     return {"status": "online", "message": "Durian IoT Backend running with full features"}
 
-# ----------------- A. Cảm biến -----------------
 @app.get("/api/v1/sensors/latest")
 def get_latest_sensor_data(limit: int = 10):
     db = SessionLocal()
     try:
-        logs = db.query(SensorLog).order_by(SensorLog.created_at.desc()).limit(limit).all()
-        return logs
+        return db.query(SensorLog).order_by(SensorLog.created_at.desc()).limit(limit).all()
     finally:
         db.close()
 
-# ----------------- B. Quản lý Tài khoản (Auth & Users) -----------------
 @app.post("/api/v1/auth/login")
 def login(req: UserLogin):
     db = SessionLocal()
@@ -352,7 +340,6 @@ def list_users():
     finally:
         db.close()
 
-# ----------------- C. Cấu hình Ngưỡng Cảnh báo -----------------
 @app.get("/api/v1/thresholds")
 def get_thresholds():
     db = SessionLocal()
@@ -385,7 +372,6 @@ def update_threshold(req: ThresholdUpdate):
     finally:
         db.close()
 
-# ----------------- D. Điều khiển Bật/Tắt Máy Bơm Tưới -----------------
 @app.post("/api/v1/control/pump")
 def control_pump(req: PumpControlRequest):
     db = SessionLocal()
@@ -421,7 +407,6 @@ def get_device_status():
     finally:
         db.close()
 
-# ----------------- E. Thời tiết (OpenWeatherMap) -----------------
 @app.get("/api/v1/weather")
 def get_weather(city: str = "Tien Giang"):
     api_key = os.getenv("OPENWEATHER_API_KEY", "")
@@ -447,7 +432,6 @@ def get_weather(city: str = "Tien Giang"):
     except Exception as e:
         return {"error": f"Lỗi lấy thông tin thời tiết: {str(e)}"}
 
-# ----------------- F. Xuất Báo cáo Excel -----------------
 @app.get("/api/v1/export/excel")
 def export_excel(node_id: Optional[str] = None):
     db = SessionLocal()
@@ -486,49 +470,40 @@ def export_excel(node_id: Optional[str] = None):
     finally:
         db.close()
 
-# ----------------- G. Chatbot AI Chẩn đoán Sức khỏe Sầu riêng (Gemini API) -----------------
+# ----------------- G. Chatbot AI Gemini -----------------
 @app.post("/api/v1/chat")
 def chat_with_durian_ai(req: ChatRequest):
-  """API Chatbot AI tư vấn sức khỏe cây sầu riêng (Context Injection)"""
-  gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-  if not gemini_api_key:
-    raise HTTPException(
-        status_code=500,
-        detail="Chưa cấu hình GEMINI_API_KEY trong biến môi trường",
-    )
+    """API Chatbot AI tư vấn sức khỏe cây sầu riêng (Context Injection)"""
+    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+    if not gemini_api_key:
+        raise HTTPException(
+            status_code=500, 
+            detail="Chưa cấu hình GEMINI_API_KEY trong biến môi trường"
+        )
+    
+    db = SessionLocal()
+    try:
+        # 1. Truy vấn dữ liệu cảm biến 6 bản ghi mới nhất từ Supabase
+        recent_logs = db.query(SensorLog).order_by(SensorLog.created_at.desc()).limit(6).all()
+        sensor_context = []
+        for log in recent_logs:
+            sensor_context.append(
+                f"- Node: {log.node_id} | Nhiệt độ: {log.temperature}°C | "
+                f"Độ ẩm đất: {log.soil_moisture}% | Độ ẩm KK: {log.humidity}% | "
+                f"Ánh sáng: {log.light_lux} Lux | Thời gian: {log.created_at}"
+            )
+        sensor_data_str = "\n".join(sensor_context) if sensor_context else "Chưa có dữ liệu cảm biến."
 
-  db = SessionLocal()
-  try:
-    # 1. Truy vấn dữ liệu cảm biến 6 bản ghi mới nhất từ Supabase
-    recent_logs = (
-        db.query(SensorLog)
-        .order_by(SensorLog.created_at.desc())
-        .limit(6)
-        .all()
-    )
-    sensor_context = []
-    for log in recent_logs:
-      sensor_context.append(
-          f"- Node: {log.node_id} | Nhiệt độ: {log.temperature}°C | "
-          f"Độ ẩm đất: {log.soil_moisture}% | Độ ẩm KK: {log.humidity}% | "
-          f"Ánh sáng: {log.light_lux} Lux | Thời gian: {log.created_at}"
-      )
-    sensor_data_str = (
-        "\n".join(sensor_context)
-        if sensor_context
-        else "Chưa có dữ liệu cảm biến."
-    )
+        # 2. Lấy dữ liệu thời tiết ngoài trời
+        weather_info = get_weather("Tien Giang")
+        weather_str = (
+            f"Thời tiết ngoài trời: {weather_info.get('description', 'N/A')}, "
+            f"Nhiệt độ: {weather_info.get('temp', 'N/A')}°C, "
+            f"Lượng mưa 1h: {weather_info.get('rain_1h', 0)}mm"
+        )
 
-    # 2. Lấy dữ liệu thời tiết ngoài trời
-    weather_info = get_weather("Tien Giang")
-    weather_str = (
-        f"Thời tiết ngoài trời: {weather_info.get('description', 'N/A')}, "
-        f"Nhiệt độ: {weather_info.get('temp', 'N/A')}°C, "
-        f"Lượng mưa 1h: {weather_info.get('rain_1h', 0)}mm"
-    )
-
-    # 3. Tạo System Prompt (Context Injection)
-    system_prompt = f"""
+        # 3. Tạo System Prompt (Context Injection)
+        system_prompt = f"""
 Bạn là Chuyên gia Kỹ thuật Nông nghiệp Thông minh chuyên sâu về chăm sóc cây Sầu Riêng.
 Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến trong vườn:
 
@@ -547,26 +522,28 @@ Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến 
 Câu hỏi của nông dân: "{req.message}"
 """
 
-    # 4. Gọi Gemini API (Model gemini-3.5-flash-lite)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={gemini_api_key}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
+        # 4. Gọi Gemini API (Sử dụng model gemini-2.5-flash)
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{"text": system_prompt}]
+            }]
+        }
 
-    with httpx.Client(timeout=15.0) as client:
-      response = client.post(url, json=payload, headers=headers)
-      res_data = response.json()
+        with httpx.Client(timeout=15.0) as client:
+            response = client.post(url, json=payload, headers=headers)
+            res_data = response.json()
+            
+            if response.status_code != 200:
+                raise HTTPException(status_code=500, detail=f"Lỗi Gemini API: {res_data}")
+                
+            reply_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+            return {"reply": reply_text}
 
-      if response.status_code != 200:
-        raise HTTPException(
-            status_code=500, detail=f"Lỗi Gemini API: {res_data}"
-        )
-
-      reply_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-      return {"reply": reply_text}
-
-  except HTTPException:
-    raise
-  except Exception as e:
-    raise HTTPException(status_code=500, detail=f"Lỗi xử lý Chatbot: {str(e)}")
-  finally:
-    db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Chatbot: {str(e)}")
+    finally:
+        db.close()
