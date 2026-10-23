@@ -26,8 +26,7 @@ import jwt
 # ==========================================
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
-)
+url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={gemini_api_key}")
 
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -548,8 +547,8 @@ Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến 
 Câu hỏi của nông dân: "{req.message}"
 """
 
-    # 4. Gọi Gemini API (Sử dụng model gemini-2.0-flash)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
+    # 4. Gọi Gemini API (Model gemini-3.5-flash-lite)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={gemini_api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
 
