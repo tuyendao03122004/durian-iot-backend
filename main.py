@@ -490,37 +490,46 @@ def export_excel(node_id: Optional[str] = None):
 # ----------------- G. Chatbot AI Chẩn đoán Sức khỏe Sầu riêng (Gemini API) -----------------
 @app.post("/api/v1/chat")
 def chat_with_durian_ai(req: ChatRequest):
-    """API Chatbot AI tư vấn sức khỏe cây sầu riêng (Context Injection)"""
-    gemini_api_key = os.getenv("GEMINI_API_KEY", "")
-    if not gemini_api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="Chưa cấu hình GEMINI_API_KEY trong biến môi trường"
-        )
-    
-    db = SessionLocal()
-    try:
-        # 1. Truy vấn dữ liệu cảm biến 6 bản ghi mới nhất từ Supabase
-        recent_logs = db.query(SensorLog).order_by(SensorLog.created_at.desc()).limit(6).all()
-        sensor_context = []
-        for log in recent_logs:
-            sensor_context.append(
-                f"- Node: {log.node_id} | Nhiệt độ: {log.temperature}°C | "
-                f"Độ ẩm đất: {log.soil_moisture}% | Độ ẩm KK: {log.humidity}% | "
-                f"Ánh sáng: {log.light_lux} Lux | Thời gian: {log.created_at}"
-            )
-        sensor_data_str = "\n".join(sensor_context) if sensor_context else "Chưa có dữ liệu cảm biến."
+  """API Chatbot AI tư vấn sức khỏe cây sầu riêng (Context Injection)"""
+  gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+  if not gemini_api_key:
+    raise HTTPException(
+        status_code=500,
+        detail="Chưa cấu hình GEMINI_API_KEY trong biến môi trường",
+    )
 
-        # 2. Lấy dữ liệu thời tiết ngoài trời
-        weather_info = get_weather("Tien Giang")
-        weather_str = (
-            f"Thời tiết ngoài trời: {weather_info.get('description', 'N/A')}, "
-            f"Nhiệt độ: {weather_info.get('temp', 'N/A')}°C, "
-            f"Lượng mưa 1h: {weather_info.get('rain_1h', 0)}mm"
-        )
+  db = SessionLocal()
+  try:
+    # 1. Truy vấn dữ liệu cảm biến 6 bản ghi mới nhất từ Supabase
+    recent_logs = (
+        db.query(SensorLog)
+        .order_by(SensorLog.created_at.desc())
+        .limit(6)
+        .all()
+    )
+    sensor_context = []
+    for log in recent_logs:
+      sensor_context.append(
+          f"- Node: {log.node_id} | Nhiệt độ: {log.temperature}°C | "
+          f"Độ ẩm đất: {log.soil_moisture}% | Độ ẩm KK: {log.humidity}% | "
+          f"Ánh sáng: {log.light_lux} Lux | Thời gian: {log.created_at}"
+      )
+    sensor_data_str = (
+        "\n".join(sensor_context)
+        if sensor_context
+        else "Chưa có dữ liệu cảm biến."
+    )
 
-        # 3. Tạo System Prompt (Context Injection)
-        system_prompt = f"""
+    # 2. Lấy dữ liệu thời tiết ngoài trời
+    weather_info = get_weather("Tien Giang")
+    weather_str = (
+        f"Thời tiết ngoài trời: {weather_info.get('description', 'N/A')}, "
+        f"Nhiệt độ: {weather_info.get('temp', 'N/A')}°C, "
+        f"Lượng mưa 1h: {weather_info.get('rain_1h', 0)}mm"
+    )
+
+    # 3. Tạo System Prompt (Context Injection)
+    system_prompt = f"""
 Bạn là Chuyên gia Kỹ thuật Nông nghiệp Thông minh chuyên sâu về chăm sóc cây Sầu Riêng.
 Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến trong vườn:
 
@@ -539,28 +548,26 @@ Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến 
 Câu hỏi của nông dân: "{req.message}"
 """
 
-        # 4. Gọi Gemini API (Google AI)
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_api_key}"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{
-                "parts": [{"text": system_prompt}]
-            }]
-        }
+    # 4. Gọi Gemini API (Sử dụng model gemini-2.5-flash mới nhất)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
 
-        with httpx.Client(timeout=15.0) as client:
-            response = client.post(url, json=payload, headers=headers)
-            res_data = response.json()
-            
-            if response.status_code != 200:
-                raise HTTPException(status_code=500, detail=f"Lỗi Gemini API: {res_data}")
-                
-            reply_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
-            return {"reply": reply_text}
+    with httpx.Client(timeout=15.0) as client:
+      response = client.post(url, json=payload, headers=headers)
+      res_data = response.json()
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Lỗi xử lý Chatbot: {str(e)}")
-    finally:
-        db.close()
+      if response.status_code != 200:
+        raise HTTPException(
+            status_code=500, detail=f"Lỗi Gemini API: {res_data}"
+        )
+
+      reply_text = res_data["candidates"][0]["content"]["parts"][0]["text"]
+      return {"reply": reply_text}
+
+  except HTTPException:
+    raise
+  except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Lỗi xử lý Chatbot: {str(e)}")
+  finally:
+    db.close()
