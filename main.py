@@ -26,7 +26,7 @@ import jwt
 # ==========================================
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg2://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres"
+    "postgresql+psycopg2://postgres.hlqvfbtqsuudxbglelmu:bactuyen3122004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require"
 )
 
 engine = create_engine(DATABASE_URL)
