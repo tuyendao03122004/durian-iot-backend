@@ -548,8 +548,8 @@ Dưới đây là DỮ LIỆU THỜI GIAN THỰC từ hệ thống cảm biến 
 Câu hỏi của nông dân: "{req.message}"
 """
 
-    # 4. Gọi Gemini API (Sử dụng model gemini-2.5-flash mới nhất)
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={gemini_api_key}"
+    # 4. Gọi Gemini API (Sử dụng model gemini-2.0-flash)
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={gemini_api_key}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": system_prompt}]}]}
 
