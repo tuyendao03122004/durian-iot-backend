@@ -547,3 +547,108 @@ Câu hỏi của nông dân: "{req.message}"
         raise HTTPException(status_code=500, detail=f"Lỗi xử lý Chatbot: {str(e)}")
     finally:
         db.close()
+        # ----------------- E. API Thời Tiết & Dự Báo Thực Tế -----------------
+@app.get("/api/v1/weather")
+def get_weather(city: str = "Tien Giang"):
+  api_key = os.getenv("OPENWEATHER_API_KEY", "")
+  if not api_key:
+    return {
+        "status": "demo",
+        "temp": 31.5,
+        "humidity": 75,
+        "description": "Nắng nhẹ, mây rải rác",
+        "rain_1h": 0.0,
+    }
+
+  url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric&lang=vi"
+  try:
+    resp = httpx.get(url, timeout=5.0)
+    data = resp.json()
+    return {
+        "temp": round(data["main"]["temp"], 1),
+        "humidity": data["main"]["humidity"],
+        "description": data["weather"][0]["description"].capitalize(),
+        "rain_1h": data.get("rain", {}).get("1h", 0.0),
+    }
+  except Exception as e:
+    return {"error": f"Lỗi thời tiết: {str(e)}"}
+
+
+@app.get("/api/v1/weather/forecast")
+def get_weather_forecast(city: str = "Tien Giang"):
+  """API Lấy Dự Báo Thời Tiết Thực Tế Chi Tiết Theo Ngày & Theo Giờ"""
+  api_key = os.getenv("OPENWEATHER_API_KEY", "")
+  if not api_key:
+    # Trả về dữ liệu fallback linh hoạt nếu chưa gắn API Key
+    return {"status": "demo", "city": city, "forecast": []}
+
+  url = f"https://api.openweathermap.org/data/2.5/forecast?q={city}&appid={api_key}&units=metric&lang=vi"
+  try:
+    resp = httpx.get(url, timeout=8.0)
+    data = resp.json()
+
+    if resp.status_code != 200:
+      raise HTTPException(
+          status_code=500, detail=f"Lỗi OpenWeather: {data.get('message')}"
+      )
+
+    # Nhóm dữ liệu 40 mốc (mỗi 3h) theo từng Ngày (YYYY-MM-DD)
+    daily_grouped = {}
+    for item in data["list"]:
+      dt_txt = item["dt_txt"]  # Định dạng "YYYY-MM-DD HH:MM:SS"
+      date_str = dt_txt.split(" ")[0]
+      time_str = dt_txt.split(" ")[1][:5]  # "HH:MM"
+
+      hourly_entry = {
+          "time": time_str,
+          "temp": f"{round(item['main']['temp'])}°C",
+          "humidity": f"{item['main']['humidity']}%",
+          "description": item["weather"][0]["description"].capitalize(),
+          "icon": item["weather"][0]["icon"],
+      }
+
+      if date_str not in daily_grouped:
+        daily_grouped[date_str] = {
+            "date": date_str,
+            "temps": [],
+            "humidities": [],
+            "descriptions": [],
+            "icons": [],
+            "hourly": [],
+        }
+
+      daily_grouped[date_str]["temps"].append(item["main"]["temp"])
+      daily_grouped[date_str]["humidities"].append(item["main"]["humidity"])
+      daily_grouped[date_str]["descriptions"].append(
+          item["weather"][0]["description"].capitalize()
+      )
+      daily_grouped[date_str]["icons"].append(item["weather"][0]["icon"])
+      daily_grouped[date_str]["hourly"].append(hourly_entry)
+
+    # Tổng hợp danh sách dự báo ngày
+    forecast_result = []
+    for date_key, val in daily_grouped.items():
+      min_t = round(min(val["temps"]))
+      max_t = round(max(val["temps"]))
+      avg_hum = round(sum(val["humidities"]) / len(val["humidities"]))
+      # Lấy trạng thái thời tiết phổ biến nhất trong ngày
+      main_desc = max(
+          set(val["descriptions"]), key=val["descriptions"].count
+      )
+      main_icon = max(set(val["icons"]), key=val["icons"].count)
+
+      forecast_result.append({
+          "date": date_key,
+          "temp_range": f"{min_t}°C - {max_t}°C",
+          "avg_humidity": f"{avg_hum}%",
+          "description": main_desc,
+          "icon_code": main_icon,
+          "hourly": val["hourly"],
+      })
+
+    return {"status": "success", "city": city, "forecast": forecast_result}
+
+  except Exception as e:
+    raise HTTPException(
+        status_code=500, detail=f"Lỗi truy vấn thời tiết: {str(e)}"
+    )
